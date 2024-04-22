@@ -35,7 +35,9 @@ def chat():
     bot_response = chatbot(user_input)
     return jsonify({"bot_response": bot_response})
 
-
+@app.route('/')
+def hello():
+    return "Hello, welcome to the Flask API!"
 
 sentences = [
     "Peter Piper picked a peck of pickled peppers.",

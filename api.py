@@ -48,35 +48,54 @@ sentences = [
 
 @app.route('/speech_exercise', methods=['POST'])
 def speech_exercise():
-    # Initialize recognizer
-    recognizer = sr.Recognizer()
+    # Check if the POST request contains a file
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
 
-    # Start exercise
-    exercise_results = []
-    for sentence in sentences:
-        tts = gTTS("Repeat the following sentence: " + sentence, lang='en')
-        tts.save("prompt.mp3")
-        os.system("mpg123 prompt.mp3")
+    file = request.files['file']
 
-        with sr.Microphone() as source:
-            audio = recognizer.listen(source)
+    # Check if the file is an MP3 file
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file and file.filename.endswith('.mp3'):
+        file_path = 'uploaded.mp3'
+        file.save(file_path)
 
-        try:
-            user_response = recognizer.recognize_google(audio)
-            if user_response.lower() == sentence.lower():
-                response_text = "Good job! Your speech was clear."
+        # Initialize recognizer
+        recognizer = sr.Recognizer()
+
+        # Start exercise
+        exercise_results = []
+        for sentence in sentences:
+            tts = gTTS("Repeat the following sentence: " + sentence, lang='en')
+            tts.save("prompt.mp3")
+            os.system("mpg123 prompt.mp3")
+
+            # Load the uploaded MP3 file
+            with sr.AudioFile(file_path) as source:
+                audio = recognizer.record(source)
+
+            try:
+                user_response = recognizer.recognize_google(audio)
+                if user_response.lower() == sentence.lower():
+                    response_text = "Good job! Your speech was clear."
+                    exercise_results.append({"sentence": sentence, "result": response_text})
+                else:
+                    response_text = "Try again. Your speech wasn't clear."
+                    exercise_results.append({"sentence": sentence, "result": response_text})
+            except sr.UnknownValueError:
+                response_text = "Sorry, I couldn't understand what you said."
                 exercise_results.append({"sentence": sentence, "result": response_text})
-            else:
-                response_text = "Try again. Your speech wasn't clear."
+            except sr.RequestError as e:
+                response_text = "Could not request results from Google Speech Recognition service; {0}".format(e)
                 exercise_results.append({"sentence": sentence, "result": response_text})
-        except sr.UnknownValueError:
-            response_text = "Sorry, I couldn't understand what you said."
-            exercise_results.append({"sentence": sentence, "result": response_text})
-        except sr.RequestError as e:
-            response_text = "Could not request results from Google Speech Recognition service; {0}".format(e)
-            exercise_results.append({"sentence": sentence, "result": response_text})
 
-    return jsonify({"exercise_results": exercise_results})
+        # Remove the uploaded file after processing
+        os.remove(file_path)
+
+        return jsonify({"exercise_results": exercise_results}), 200
+    else:
+        return jsonify({"error": "Invalid file format. Please upload an MP3 file"}), 400
 
 if __name__ == '__main__':
      app.run(host='0.0.0.0', debug=True)

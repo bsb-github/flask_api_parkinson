@@ -76,5 +76,5 @@ def evaluate_response(user_response):
     return {'message': 'Try again. Your speech wasn\'t clear.'}
 
 
-# if __name__ == '__main__':
-#     app.run(host='0.0.0.0', debug=True)
+if __name__ == '__main__':
+     app.run(host='0.0.0.0', debug=True)

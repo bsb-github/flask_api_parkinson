@@ -1,16 +1,14 @@
 from flask import Flask, request, jsonify
 import openai
 import speech_recognition as sr
-import pyttsx3
 from dotenv import load_dotenv
 load_dotenv()
-from os import environ
-openai.api_key = environ.get('OPENAI_API_KEY')
+import os
+openai.api_key = os.environ.get('OPENAI_API_KEY')
 recognizer = sr.Recognizer()
-engine = pyttsx3.init()
-
+from gtts import gTTS
 client = openai.OpenAI(
-    api_key=environ.get('OPENAI_API_KEY')
+    api_key=os.environ.get('OPENAI_API_KEY')
 )
 messages = [
     {"role": "system", "content": "You are in a session with a Parkinson's disease speech therapist. You can discuss any concerns or ask for assistance related to speech therapy. Please feel free to start the conversation."},
@@ -48,33 +46,37 @@ sentences = [
 
 
 
-@app.route('/speech-exercise', methods=['POST'])
+@app.route('/speech_exercise', methods=['POST'])
 def speech_exercise():
-    data = request.json
-    if 'audio' not in data:
-        return jsonify({'error': 'Audio data not provided'}), 400
-    
-    audio_data = data['audio']
-    
-    try:
-        text = recognize_speech(audio_data)
-        result = evaluate_response(text)
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # Initialize recognizer
+    recognizer = sr.Recognizer()
 
-def recognize_speech(audio_data):
-    with sr.AudioData(audio_data) as source:
-        text = recognizer.recognize_google(source)
-    return text.lower()
-
-def evaluate_response(user_response):
+    # Start exercise
+    exercise_results = []
     for sentence in sentences:
-        if user_response.lower() == sentence.lower():
-            return {'message': 'Good job! Your speech was clear.'}
-    
-    return {'message': 'Try again. Your speech wasn\'t clear.'}
+        tts = gTTS("Repeat the following sentence: " + sentence, lang='en')
+        tts.save("prompt.mp3")
+        os.system("mpg123 prompt.mp3")
 
+        with sr.Microphone() as source:
+            audio = recognizer.listen(source)
+
+        try:
+            user_response = recognizer.recognize_google(audio)
+            if user_response.lower() == sentence.lower():
+                response_text = "Good job! Your speech was clear."
+                exercise_results.append({"sentence": sentence, "result": response_text})
+            else:
+                response_text = "Try again. Your speech wasn't clear."
+                exercise_results.append({"sentence": sentence, "result": response_text})
+        except sr.UnknownValueError:
+            response_text = "Sorry, I couldn't understand what you said."
+            exercise_results.append({"sentence": sentence, "result": response_text})
+        except sr.RequestError as e:
+            response_text = "Could not request results from Google Speech Recognition service; {0}".format(e)
+            exercise_results.append({"sentence": sentence, "result": response_text})
+
+    return jsonify({"exercise_results": exercise_results})
 
 if __name__ == '__main__':
      app.run(host='0.0.0.0', debug=True)
